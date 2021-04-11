@@ -11,3 +11,9 @@ DataLab，BombLab以及第二章读书笔记，第九章虚拟内存部分笔记
 
 
 
+## 第二周
+
+这周有点忙
+
+Attack_Lab, 第九章完成阅读，顺便实现简单的内存分配器， 显示链表分配器（my_malloc）完成mm_malloc部分，free部分有待完成
+
