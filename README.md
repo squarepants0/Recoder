@@ -17,3 +17,15 @@ DataLab，BombLab以及第二章读书笔记，第九章虚拟内存部分笔记
 
 Attack_Lab, 第九章完成阅读，顺便实现简单的内存分配器， 显示链表分配器（my_malloc）完成mm_malloc部分，free部分有待完成
 
+
+
+## 第三周
+
++   作死~完成了my_malloc 具有分配，切割，和合并操作。差不多一个简陋版的malloc.c
+
++   然后做一个BufferLab，ArchLab的partA后面的设计部分得深入看书了，
+
++   学了一些第八章异常控制流
+
+下周又要填坑了~
+
