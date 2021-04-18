@@ -1,0 +1,54 @@
+#start
+		.pos 0
+		irmovq stack, %rsp
+		rrmovq %rsp, %rbp
+		irmovq $0x20, %r10
+		subq $%r10, %rsp
+		call main
+		halt
+
+		.align 8
+ele1:
+		.quad 0x00a
+		.quad ele2
+ele2:
+		.quad 0x0b0
+		.quad ele3
+ele3:
+		.quad 0xc00
+		.quad 0  
+
+main:
+		pushq %rbp
+		rrmovq %rsp, %rbp
+		irmovq $0x20, %r10
+		subq %r10, %rsp
+		irmovq ele1, %rdi
+		call rsum
+		rrmovq %rbp, %rsp
+		popq %rbp
+		ret
+
+rsum:
+		pushq %rbp
+		rrmovq %rsp, %rbp
+		irmovq $0x20, %r10
+		subq %r10, %rsp
+		andq %rdi, %rdi
+		je	exit
+		mrmovq (%rdi), %r8
+		rmmovq %r8, -8(%rbp)
+		mrmovq 8(%rdi), %rdi
+		call rsum
+		mrmovq -8(%rbp), %rbx
+		addq %rbx, %rax
+		jmp leave
+exit:
+		irmovq $0, %rax
+leave:
+		rrmovq %rbp, %rsp
+		popq %rbp
+		ret
+		
+		.pos 0x300
+stack:
