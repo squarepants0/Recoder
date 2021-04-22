@@ -102,3 +102,185 @@ Changes to memory:
 0x01f8:	0x0000000000000000	0x0000000000000013
 ```
 
+
+
+## Update 2021/4/21
+
+PartB需要完成修改SEQ模拟器，来将iaddq加入指令集可以参照irmovq指令来处理
+
+```bash
+####################################################################
+#    Control Signal Definitions.                                   #
+####################################################################
+
+################ Fetch Stage     ###################################
+
+# Determine instruction code
+word icode = [
+	imem_error: INOP;
+	1: imem_icode;		# Default: get from instruction memory
+];
+
+# Determine instruction function
+word ifun = [
+	imem_error: FNONE;
+	1: imem_ifun;		# Default: get from instruction memory
+];
+#此处声明IIADDQ指令为合法指令
+bool instr_valid = icode in 
+	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
+	       IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IIADDQ};
+
+# Does fetched instruction require a regid byte? 填入需要寄存器的指令
+bool need_regids =
+	icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, 
+		     IIRMOVQ, IRMMOVQ, IMRMOVQ , IIADDQ};
+
+# Does fetched instruction require a constant word? 填入需要常数的指令
+bool need_valC =
+	icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL, IIADDQ };
+
+################ Decode Stage    ###################################
+
+## What register should be used as the A source? 需要A口作为输入的指令
+word srcA = [
+	icode in { IRRMOVQ, IRMMOVQ, IOPQ, IPUSHQ  } : rA;
+	icode in { IPOPQ, IRET } : RRSP;
+	1 : RNONE; # Don't need register
+];
+
+## What register should be used as the B source? 需要B口作为输入的指令
+word srcB = [
+	icode in { IOPQ, IRMMOVQ, IMRMOVQ, IIADDQ } : rB;
+	icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
+	1 : RNONE;  # Don't need register
+];
+
+## What register should be used as the E destination? 指定计算结果存放
+word dstE = [
+	icode in { IRRMOVQ } && Cnd : rB;
+	icode in { IIRMOVQ, IOPQ, IIADDQ} : rB;
+	icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
+	1 : RNONE;  # Don't write any register
+];
+
+## What register should be used as the M destination? 指定内存值存放 
+word dstM = [
+	icode in { IMRMOVQ, IPOPQ } : rA;
+	1 : RNONE;  # Don't write any register
+];
+
+################ Execute Stage   ###################################
+
+## Select input A to ALU  指定ALU的A口输入
+word aluA = [
+	icode in { IRRMOVQ, IOPQ } : valA;
+	icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ , IIADDQ} : valC;
+	icode in { ICALL, IPUSHQ } : -8;
+	icode in { IRET, IPOPQ } : 8;
+	# Other instructions don't need ALU
+];
+
+## Select input B to ALU  #指定ALU的B口输入
+word aluB = [
+	icode in { IRMMOVQ, IMRMOVQ, IOPQ, ICALL, 
+		      IPUSHQ, IRET, IPOPQ, IIADDQ } : valB;
+	icode in { IRRMOVQ, IIRMOVQ } : 0;
+	# Other instructions don't need ALU
+];
+
+## Set the ALU function #使用ALU的模式
+word alufun = [
+	icode == IOPQ : ifun;
+	1 : ALUADD;
+];
+```
+
+结果：
+
+![image-20210421214149193](README.assets/image-20210421214149193.png)
+
+
+
+## Update 2021/4/22
+
+完成第四章处理器结构体系的学习(Note)，以及对应ArchLab的实验Partc部分
+
+Lab的PartC需要修改pipe-full.hcl和ncopy.ys来使得程序执行速度提高
+
+### 修改的pipe部分
+
+大致和PartB的SEQ差不多，主要添加IADDQ
+
+````bash
+# Is instruction valid?
+bool instr_valid = f_icode in 
+	{ INOP, IHALT, IRRMOVQ, IIRMOVQ, IRMMOVQ, IMRMOVQ,
+	  IOPQ, IJXX, ICALL, IRET, IPUSHQ, IPOPQ, IIADDQ };
+# Does fetched instruction require a regid byte?
+bool need_regids =
+	f_icode in { IRRMOVQ, IOPQ, IPUSHQ, IPOPQ, 
+		     IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ };
+
+# Does fetched instruction require a constant word?
+bool need_valC =
+	f_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IJXX, ICALL, IIADDQ };
+## What register should be used as the B source?
+word d_srcB = [
+	D_icode in { IOPQ, IRMMOVQ, IMRMOVQ, IIADDQ } : D_rB;
+	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
+	1 : RNONE;  # Don't need register
+];
+
+## What register should be used as the E destination?
+word d_dstE = [
+	D_icode in { IRRMOVQ, IIRMOVQ, IOPQ, IIADDQ} : D_rB;
+	D_icode in { IPUSHQ, IPOPQ, ICALL, IRET } : RRSP;
+	1 : RNONE;  # Don't write any register
+];
+## Select input A to ALU
+word aluA = [
+	E_icode in { IRRMOVQ, IOPQ } : E_valA;
+	E_icode in { IIRMOVQ, IRMMOVQ, IMRMOVQ, IIADDQ} : E_valC;
+	E_icode in { ICALL, IPUSHQ } : -8;
+	E_icode in { IRET, IPOPQ } : 8;
+	# Other instructions don't need ALU
+];
+
+## Select input B to ALU
+word aluB = [
+	E_icode in { IRMMOVQ, IMRMOVQ, IOPQ, ICALL, 
+		     IPUSHQ, IRET, IPOPQinstr_valid, IIADDQ} : E_valB;
+	E_icode in { IRRMOVQ, IIRMOVQ } : 0;
+	# Other instructions don't need ALU
+];
+## Should the condition codes be updated?
+bool set_cc = E_icode == IOPQ && E_icode == IIADDQ && 
+	# State changes only during normal operation
+	!m_stat in { SADR, SINS, SHLT } && !W_stat in { SADR, SINS, SHLT };
+````
+
+### 修改的
+
+这里就把常数+寄存器的替换为IADDQ就差不多了
+
+```assembly
+# You can modify this portion
+	# Loop header
+	xorq %rax,%rax		# count = 0;
+	andq %rdx,%rdx		# len <= 0?
+	jle Done		# if so, goto Done:
+
+Loop:	mrmovq (%rdi), %r10	# read val from src...
+	rmmovq %r10, (%rsi)	# ...and store it to dst
+	andq %r10, %r10		# val <= 0?
+	jle Npos			# if so, goto Npos:
+	iaddq $1, %rax		# count++ 
+Npos:
+	iaddq $-1, %rdx		# len-- 
+	iaddq $8, %rdi		# src++ 
+	iaddq $8, %rsi		# dst++ iaddq $8, %rsi
+	andq %rdx,%rdx		# len > 0?
+	jg Loop			# if so, goto Loop:
+```
+
