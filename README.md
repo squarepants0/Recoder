@@ -29,3 +29,13 @@ Attack_Lab, 第九章完成阅读，顺便实现简单的内存分配器， 显�
 
 下周又要填坑了~
 
+
+
+## 第四周
+
+被第四章和archlab恶心吐了，cache这周就放放吧
+
++   完成ArchLab以及第四章处理器体系结构的学习(详见week3/Note2.md)
++   完成第八章异常控制流的学习(详见week3/Note.md)
++   week4/shlab
+
