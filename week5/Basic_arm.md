@@ -60,7 +60,7 @@ Rx, LSL n               - Register x with logical shift left by n bits (0 = n = 
 Rx, LSR n               - Register x with logical shift right by n bits (1 = n = 32)
 Rx, ROR n               - Register x with rotate right by n bits (1 = n = 31)
 ```
-|Instruction | Description | Instruction | Description|
+| Instruction | Description | Instruction | Description |
 | MOV	| Move | data |	EOR	Bitwise XOR|
 | ADD	| Addition	| STR	| Store|
 | SUB	|Subtraction|	LDM	|Load Multiple|
@@ -68,8 +68,8 @@ Rx, ROR n               - Register x with rotate right by n bits (1 = n = 31)
 |LSL	|Logical Shift Left	|PUSH	Push on Stack|
 |LSR	|Logical Shift Right	|POP	Pop off Stack|
 |CMP	|Compare	|BX	Branch and eXchange|
-| AND	Bitwise AND	|BLX	Branch with Link and eXchange|
-|ORR	Bitwise OR	|SWI/SVC	System Call|
+| AND |	Bitwise AND	|BLX	Branch with Link and eXchange|
+|ORR	|Bitwise OR	|SWI/SVC	System Call|
 
 ## Lord & Store
 存取方式和x86感觉差不多
@@ -222,3 +222,95 @@ _start:
 + ldmia sp!, {r4, r5}：将sp栈上的值分别加载到r4,r5
 	+ ia结合sp！：加载一个值后`sp += 4`
 	+ pop {r2, r3}
+
+
+
+# Function invoke
+
+函数分为：
+
++   Prologue：栈空间开辟
++   Body：函数主体
++   Epilogue：回收
+
+
+
+Prologue部分不同编译器可能样式不同，总的来说通过**PUSH/ADD/SUB**完成：
+
+```assembly
+push   {r11, lr}    /* Start of the prologue. Saving Frame Pointer and LR onto the stack */
+add    r11, sp, #0  /* Setting up the bottom of the stack frame */
+sub    sp, sp, #16  /* End of the prologue. Allocating some buffer on the stack. This also allocates space for the Stack Frame */
+```
+
+<img src="Basic_arm.assets/image-20210927145034598.png" alt="image-20210927145034598" style="zoom:50%;" />
+
+栈空间如上
+
+
+
+然后body部分就是参数存取，计算，跳转等。其中进行函数调用一般前4个参数存于**r0~r3**，再有就排布在栈上：
+
+```assembly
+   104f4:	e51b0018 	ldr	r0, [fp, #-24]	; 0xffffffe8
+   104f8:	e51b1014 	ldr	r1, [fp, #-20]	; 0xffffffec
+   104fc:	e51b2010 	ldr	r2, [fp, #-16]
+   10500:	e51b300c 	ldr	r3, [fp, #-12]
+   10504:	e51bc008 	ldr	ip, [fp, #-8]
+   10508:	e58dc000 	str	ip, [sp]
+   1050c:	ebffffd4 	bl	10464 <mix>
+```
+
+
+
+epilogue部分负责栈回收，函数返回：
+
+```assembly
+sub    sp, r11, #0  /* Start of the epilogue. Readjusting the Stack Pointer */
+pop    {r11, pc}    /* End of the epilogue. Restoring Frame Pointer from the Stack, jumping to previously saved LR via direct load into PC. The Stack Frame of a function is finally destroyed at this step. */
+```
+
+
+
+## Leaf function
+
+arm中函数分为
+
++   叶子函数：函数内部不会跳转到另一个函数
++   非叶子函数：函数内部可能跳转到另一个函数
+
+```assembly
+main:
+	push   {r11, lr}    /* Start of the prologue. Saving Frame Pointer and LR onto the stack */
+	add    r11, sp, #0  /* Setting up the bottom of the stack frame */
+	sub    sp, sp, #16  /* End of the prologue. Allocating some buffer on the stack */
+	mov    r0, #1       /* setting up local variables (a=1). This also serves as setting up the first parameter for the max function */
+	mov    r1, #2       /* setting up local variables (b=2). This also serves as setting up the second parameter for the max function */
+	bl     max          /* Calling/branching to function max */
+	sub    sp, r11, #0  /* Start of the epilogue. Readjusting the Stack Pointer */
+	pop    {r11, pc}    /* End of the epilogue. Restoring Frame pointer from the stack, jumping to previously saved LR via direct load into PC */
+
+max:
+	push   {r11}        /* Start of the prologue. Saving Frame Pointer onto the stack */
+	add    r11, sp, #0  /* Setting up the bottom of the stack frame */
+	sub    sp, sp, #12  /* End of the prologue. Allocating some buffer on the stack */
+	cmp    r0, r1       /* Implementation of if(a<b) */
+	movlt  r0, r1       /* if r0 was lower than r1, store r1 into r0 */
+	add    sp, r11, #0  /* Start of the epilogue. Readjusting the Stack Pointer */
+	pop    {r11}        /* restoring frame pointer */
+	bx     lr           /* End of the epilogue. Jumping back to main via LR register */
+```
+
+主要的区别就是**lr寄存器处理**
+
+```assembly
+ /* An epilogue of a leaf function */
+add    sp, r11, #0  /* Start of the epilogue. Readjusting the Stack Pointer */
+pop    {r11}        /* restoring frame pointer */
+bx     lr           /* End of the epilogue. Jumping back to main via LR register */
+
+/* An epilogue of a non-leaf function */
+sub    sp, r11, #0  /* Start of the epilogue. Readjusting the Stack Pointer */
+pop    {r11, pc}    /* End of the epilogue.
+```
+
